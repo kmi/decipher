@@ -1,0 +1,158 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>uk.ac.open.kmi.decipher</groupId>
+  <artifactId>SemRecommender</artifactId>
+  <packaging>war</packaging>
+  <version>0.1</version>
+  <name>SemEnricher Maven Webapp</name>
+  <url>http://maven.apache.org</url>
+  
+  <developers>
+		<developer>
+			<id>nli</id>
+			<name>Ning Li</name>
+			<email>n.li-{AT}-open.ac.uk</email>
+			<url>http://people.kmi.open.ac.uk/ning/</url>
+			<organization>Knowledge Media Institute - The Open University</organization>
+			<organizationUrl>http://kmi.open.ac.uk</organizationUrl>
+		</developer>
+   </developers>
+   <organization>
+		<name>Knowledge Media Institute - The Open University</name>
+		<url>http://kmi.open.ac.uk</url>
+   </organization>
+   
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>3.8.1</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- jersey server -->
+	<dependency>
+		<groupId>com.sun.jersey</groupId>
+		<artifactId>jersey-server</artifactId>
+		<version>1.4</version>
+	</dependency>
+    <!-- jersey client --> 
+    <dependency>
+      <groupId>com.sun.jersey</groupId>
+      <artifactId>jersey-client</artifactId>
+      <version>1.4</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.sun.jersey.contribs</groupId>
+      <artifactId>jersey-apache-client</artifactId>
+      <version>1.4</version>
+    </dependency>
+    <!-- JAXB 
+    <dependency>
+      <groupId>com.sun.jersey</groupId>
+      <artifactId>jersey-json</artifactId>
+      <version>1.4</version>
+    </dependency> -->
+    <!-- Jersey atom -->
+    <dependency>
+      <groupId>com.sun.jersey.contribs</groupId>
+      <artifactId>jersey-atom-abdera</artifactId>
+      <version>1.4</version>
+    </dependency>
+
+   <dependency>
+     <groupId>com.sun.jersey</groupId>
+     <artifactId>jersey-atom</artifactId>
+     <version>1.4</version>
+   </dependency>
+   <!-- JSON -->
+    <dependency>
+      <groupId>com.sun.jersey</groupId>
+      <artifactId>jersey-json</artifactId>
+      <version>1.4</version>
+    </dependency>
+    <!-- Jersey Test Framework -->
+    <dependency>
+      <groupId>com.sun.jersey.jersey-test-framework</groupId>
+      <artifactId>jersey-test-framework-grizzly</artifactId>
+      <version>1.4</version>
+      <scope>test</scope>
+    </dependency>    
+    <!-- RDF2GO -->
+    <dependency>
+           <groupId>org.semweb4j</groupId>
+           <artifactId>rdf2go.api</artifactId>
+           <version>4.7.3</version>
+    </dependency>    
+    <dependency>
+      <groupId>org.semweb4j</groupId>
+      <artifactId>rdf2go.impl.sesame23</artifactId>
+      <version>4.7.3</version>
+      <scope>runtime</scope> 
+    </dependency> 
+    
+     <dependency>
+       <groupId>org.deri.xsparql</groupId>
+       <artifactId>xsparql-kmi-modified</artifactId>
+       <version>0.2.1</version>
+     </dependency> 
+     <dependency>
+       <groupId>org.deri.xsparql</groupId>
+       <artifactId>xsparql-dependencies-only</artifactId>
+       <version>0.2.1</version>
+      </dependency>
+  <!-- weka 
+	<dependency>
+	  <groupId>nz.ac.waikato.cms.weka</groupId>
+	  <artifactId>weka-dev</artifactId>
+	  <version>3.7.5</version>
+    </dependency> -->
+	<dependency>
+		<groupId>nz.ac.waikato.cms.weka</groupId>
+		<artifactId>weka</artifactId>
+		<version>3.6.8</version>
+	</dependency>
+
+	<!-- for xsparql <dependency> <groupId>org.deri.xsparql</groupId> <artifactId>xsparql-preview</artifactId> 
+		<version>1.0</version> </dependency> -->
+	<!-- for org.apache.commons.lang -->
+	<dependency>
+		<groupId>apache-lang</groupId>
+		<artifactId>commons-lang</artifactId>
+		<version>2.1</version>
+	</dependency>
+	<dependency>
+		<groupId>org.scribe</groupId>
+		<artifactId>scribe</artifactId>
+		<version>1.2.3</version>
+	</dependency>
+	<!-- freebase -->
+	<dependency>
+		<groupId>com.freebase</groupId>
+		<artifactId>freebase-java</artifactId>
+		<version>1.0.0</version>
+	</dependency>
+ 	<dependency>
+        <groupId>org.armedbear.lisp</groupId>
+        <artifactId>ABCL</artifactId>
+        <version>1.1.1</version>
+    </dependency>  
+</dependencies>
+           
+<repositories>
+	<repository>
+		<id>freebase-java</id>
+		<url>http://freebase-java.googlecode.com/svn/repository</url>
+		<snapshots>
+			<enabled>true</enabled>
+		</snapshots>
+		<releases>
+			<enabled>true</enabled>
+		</releases>
+	</repository>
+</repositories>     
+  <build>
+    <finalName>SemRecommender</finalName>
+  </build>
+</project>
