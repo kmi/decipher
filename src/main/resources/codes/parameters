@@ -1,4 +1,4 @@
-;; parameters for the narrative recommender                   -*- mode: Emacs-Lisp; -*-
+;; parameters for the narrative recommender                   -*- mode: Lisp; -*-
 (defparameter *sections*
 '(
 (	3742	((	3300	(	1928	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	))
