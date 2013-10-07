@@ -7,7 +7,7 @@
 ;;; all available story sections. The weighted score is a weighted
 ;;; total for the path.
 
-(defstruct node :sections :events :objects :cosine-similarity :coverage :object-coverage :weighted-score)
+(defstruct node sections events objects cosine-similarity coverage object-coverage weighted-score)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; TRANSLATE TO NODE
@@ -187,7 +187,7 @@
 
 (defun hill-climbing (start-node &aux current-node neighbours next-eval next-node current-eval neighbour-eval)
   (setq current-node start-node)
-  (loop
+  (loop while t do
    (setq neighbours (get-neighbours current-node)) ; find the sections not used in the current node-path
 ;;; reset parameters
    (setq next-eval 0)
@@ -200,13 +200,13 @@
 
    (dolist (item neighbours)
          (setq neighbour-eval (evaluate-next-node item current-node)) ; evaluate each section in turn against the current path
-          (cond ((> (fourth neighbour-eval) next-eval) ;; if the returned weighted score is greater than the next-eval
+         (cond ((> (fourth neighbour-eval) next-eval) ;; if the returned weighted score is greater than the next-eval
        ;;; set up the values for the variables
-            (setq next-node item)
-            (setq next-eval (fourth neighbour-eval))
-            (setq next-cosine (first neighbour-eval)))
-            (setq next-coverage (second neighbour-eval))
-            (setq next-object-coverage (third neighbour-eval)))
+                (setq next-node item)
+                (setq next-eval (fourth neighbour-eval))
+                (setq next-cosine (first neighbour-eval))
+                (setq next-coverage (second neighbour-eval))
+                (setq next-object-coverage (third neighbour-eval))))
    )
    (if (<= next-eval current-eval)  ; when the overall weighted score is not better than the current score then simply return the current node
        (return current-node))
@@ -483,7 +483,7 @@
 (setq result nil)
 (loop for i from 0 to (- (length section-list) 1) ; for every section
  do (loop for j from i to (- (length section-list) 1) ; against every other sections
-    do if (not (equal i j)) ; unless they are the same
+    when (not (equal i j)) ; unless they are the same
       do (progn
 ;;; calculate the similarity and store in result
         (push (list (nth i section-list) (nth j section-list) (compare-event-lists (cadr (find (nth i section-list) *sections* :key #'car))
