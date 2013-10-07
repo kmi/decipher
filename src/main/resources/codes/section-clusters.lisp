@@ -7,7 +7,7 @@
 ;;; all available story sections. The weighted score is a weighted
 ;;; total for the path.
 
-(defstruct node :sections :events :objects :cosine-similarity :coverage :object-coverage :weighted-score)
+(defstruct node sections events objects cosine-similarity coverage object-coverage weighted-score)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; TRANSLATE TO NODE
@@ -187,7 +187,7 @@
 
 (defun hill-climbing (start-node &aux current-node neighbours next-eval next-node current-eval neighbour-eval)
   (setq current-node start-node)
-  (loop
+  (loop while t do
    (setq neighbours (get-neighbours current-node)) ; find the sections not used in the current node-path
 ;;; reset parameters
    (setq next-eval 0)
@@ -200,13 +200,13 @@
 
    (dolist (item neighbours)
          (setq neighbour-eval (evaluate-next-node item current-node)) ; evaluate each section in turn against the current path
-          (cond ((> (fourth neighbour-eval) next-eval) ;; if the returned weighted score is greater than the next-eval
+         (cond ((> (fourth neighbour-eval) next-eval) ;; if the returned weighted score is greater than the next-eval
        ;;; set up the values for the variables
-            (setq next-node item)
-            (setq next-eval (fourth neighbour-eval))
-            (setq next-cosine (first neighbour-eval)))
-            (setq next-coverage (second neighbour-eval))
-            (setq next-object-coverage (third neighbour-eval)))
+                (setq next-node item)
+                (setq next-eval (fourth neighbour-eval))
+                (setq next-cosine (first neighbour-eval))
+                (setq next-coverage (second neighbour-eval))
+                (setq next-object-coverage (third neighbour-eval))))
    )
    (if (<= next-eval current-eval)  ; when the overall weighted score is not better than the current score then simply return the current node
        (return current-node))
@@ -483,7 +483,7 @@
 (setq result nil)
 (loop for i from 0 to (- (length section-list) 1) ; for every section
  do (loop for j from i to (- (length section-list) 1) ; against every other sections
-    do if (not (equal i j)) ; unless they are the same
+    when (not (equal i j)) ; unless they are the same
       do (progn
 ;;; calculate the similarity and store in result
         (push (list (nth i section-list) (nth j section-list) (compare-event-lists (cadr (find (nth i section-list) *sections* :key #'car))
@@ -491,3 +491,83 @@
         (push (list (nth j section-list) (nth i section-list) (compare-event-lists (cadr (find (nth i section-list) *sections* :key #'car))
                                                                                                   (cadr (find (nth j section-list) *sections* :key #'car)))) result))))
  result)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; GENERIC SUMMARY
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; NAME: generic-summary
+;;; INPUT: the output of `random-hill-climbing'
+;;; OUTPUT: a more readable summary of the data that appears, showing only the duplicated
+;;; items
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun generic-summary (paths)
+  (let* ((node-events-list (mapcar #'node-events paths))
+         (events-basis (mapcar (let ((n 0)) (lambda (x) (setq n (1+ n)) (format nil "A~A" n)))
+                               (second (first (first node-events-list))))))
+    ;; for each node...
+    (mapcar 
+     ;; examine the events...
+     (lambda (event-sublist)
+       ;; and for each event, merge the results...
+       ;; sorted based on numerical identifier
+       (sort
+        (keep-duplicates-count
+         (mapcan (lambda (event)
+                   ;; return a list of the matching basis items
+                   (mapcan (lambda (item base)
+                             (when (eq item 1)
+                               (list base))) (second event) events-basis))
+                 event-sublist)
+         ;; set a lower bound for how many duplicate items are needed to be interesting
+         5)
+        (lambda (x y) (< (parse-integer (subseq x 1)) (parse-integer (subseq y 1))))))
+     node-events-list)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; KEEP DUPLICATES
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; NAME: keep-duplicates
+;;; INPUT: a list
+;;; OUTPUT: another list that only includes duplicated items in the input
+;;; i.e. this is the opposite behavior to the function `delete-duplicates'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun keep-duplicates (list)
+  (let (result)
+    (loop while list do
+         (let ((elt (car list)))
+           (when (and (member elt (cdr list))
+                      (not (member elt result)))
+             (setq result (nconc result (list elt)))))
+         (setq list (cdr list)))
+    result))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; KEEP DUPLICATES, COUNTING NUMBER OF DUPLICATIONS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; NAME: keep-duplicates-count
+;;; INPUT: a list
+;;; OUTPUT: an alist that only includes duplicated items together with their frequency
+;;; Alternate treatment to the simpler function above, use `multiple-value-bind'
+;;; to get the frequency data.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun keep-duplicates-count (list &optional (min-accept 1))
+  (let ((rv (make-hash-table :test #'equal)))
+    (mapcar (lambda (x) (let ((place (gethash x rv)))
+                          (if place
+                              (setf (gethash x rv) (1+ place))
+                              (setf (gethash x rv) 1))))
+            list)
+    (let ((counts (loop for key being the hash-keys of rv
+                       when (> (gethash key rv) min-accept)
+                     collect (cons key (gethash key rv)))))
+         (sort counts
+               (lambda (a b) (> (cdr a) (cdr b))))
+         ;; Maybe there would be a way to get away with less looping...
+         (loop for (a . b) in counts
+               collect a into keys
+               collect b into vals
+               finally (return (values keys vals))))))
