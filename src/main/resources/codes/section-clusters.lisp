@@ -571,3 +571,7 @@
                collect a into keys
                collect b into vals
                finally (return (values keys vals))))))
+
+;; try - (convert-input-to-sections-format *sample-three*)
+(defun convert-input-to-sections-format (input)
+  (mapcar #'(lambda(x) (list (car x) (cdr (caadr x)) (caddr x))) (cddr input)))
