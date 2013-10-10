@@ -113,10 +113,20 @@
            (dolist (c2-item c2)
              (setq distance (cosine-similarity (cadr c1-item) (cadr c2-item))) ; calculate the cosine similarity between this event and each event in cluster 2, in turn
              (setq distance-list (cons distance distance-list)))) ; and add this distance to a list of all distances
-  (setq sum (eval (cons '+ distance-list)))  ; when this is done, add up all the distance values
+  (setq sum (sum distance-list))  ; when this is done, add up all the distance values
   (setq len (length distance-list))
   (setq mean (/ sum len)) ; then divide the distance values by the number of distances to get the mean
   (values mean)
+)
+
+(defun sum(list)    
+    (if (null list)
+        0
+        (+ 
+            (first list) 
+            (sum (rest list))
+        )   
+    )   
 )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -284,8 +294,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun evaluate-next-node-coverage (new-node current-node &aux new-events current-events)
-  (setq new-events (node-events new-node))
-  (setq current-events (node-events current-node))
+  (setq new-events (remove-duplicates (node-events new-node)))
+  (setq current-events (remove-duplicates (node-events current-node)))
  ;;; put code to remove duplicate events here, if wanted
   (/ (length (append new-events current-events)) ; divide the number of events across the two nodes by the total number of events in all sections
    *event-total*)
@@ -301,8 +311,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun evaluate-next-node-objects (new-node current-node &aux new-objects current-objects)
-  (setq new-objects (node-objects new-node))
-  (setq current-objects (node-objects current-node))
+  (setq new-objects (remove-duplicates (node-objects new-node)))
+  (setq current-objects (remove-duplicates (node-objects current-node)))
  ;;; put code to remove duplicate objects here, if wanted
   (/ (length (append new-objects current-objects)) ; divide the number of objects across the two nodes by the total number of objects in all sections
    *object-total*)
@@ -402,60 +412,111 @@
 ;;; OUTPUT: an ordered list of story sections
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;(create-narrative-structure *sections* 'linear)
+;;(create-narrative-structure *sections* 'layered)
 
 (defun create-narrative-structure (sections type &aux best-sections ordered-sections result)
 (cond
   ((equal type 'linear)
-   (setq best-sections (car (random-hill-climbing 3))) ; use random hill-climbing with n=3 to find the best path and take the first result
-   (if (> (length (node-sections best-sections)) 1) ; if there is more than one section in the returned path
-   (setq ordered-sections (organise-sections (node-sections best-sections))) ; then organise the sections
-   (setq ordered-sections (node-sections best-sections)) ; otherwise return the one section
-   ))
+   (setq best-sections (car (sort (copy-list (random-hill-climbing 3)) #'> :key #'node-weighted-score))) ; use random hill-climbing with n=3 to find the best path and take the first result
+   (node-sections best-sections)
+   )
  ((equal type 'layered)
-   (setq best-sections (car (random-hill-climbing 3)))
-  ;;; functions to create layered structure
-     )
+   (setq best-sections (car (random-hill-climbing 3))) ; best-sections is a node-structure
+   (setq layered-paths (mapcar (lambda (x) (find (list x) *nodes* :key #'node-sections :test #'equal)) (node-sections best-sections))) ; make a list of node structures (search in *nodes*) for each section in the backbone
+   (setq unused-sections (copy-list *nodes*)) ; then make a list of nodes for currently unused sections
+   (setq scores nil)
+
+   (mapcar (lambda (x) (setq unused-sections (remove (list x) unused-sections :key #'node-sections :test #'equal))) (node-sections best-sections))
+   ;;; version to use all unused-sections
+   (loop while unused-sections ; while there are unused-sections
+        do (setq eval 0)
+     do  (loop for i from 0 to (- (length unused-sections) 1) ; for every unused section
+           do (loop for j from i to (- (length layered-paths) 1) ; against each layered-path
+           do (setq current-eval (evaluate-next-node (nth i unused-sections) (nth j layered-paths)))  ; get the weighted score for merging the two sections
+           do (if (> (fourth current-eval) eval) ; if the eval score is the highest, then set up the parameters for merging.
+                  (progn 
+                    (setq next-node (nth i unused-sections))
+                    (setq current-node (nth j layered-paths))
+                    (setq eval (fourth current-eval))
+                    (setq next-cosine (first current-eval))
+                    (setq next-coverage (second current-eval))
+                    (setq next-object-coverage (third current-eval))))))
+     ;;; then merge the best nodes
+        (setq merged-node (new-current-node next-node current-node eval next-cosine next-coverage next-object-coverage)) ; this is a new merged-node
+   
+  ;;; UNCOMMENT THE IF STATEMENT TO ONLY EXPAND PATH WHERE IT INCREASES WEIGHTED SCORE
+      ;  (if (>= eval (node-weighted-score current-node))
+        ;;; replace it with the previous item in the layered-paths
+       (setq layered-paths (substitute merged-node (node-sections current-node) layered-paths :key #'node-sections :test #'equal))
+      ;   )
+       ;;; and remove the node from unused
+       (setq unused-sections (remove (node-sections next-node) unused-sections :key #'node-sections :test #'equal))
+      )
+   (mapcar #'node-sections layered-paths)
+  )
   ((equal type 'multi)
    (setq result nil)
-   (setq best-sections (random-hill-climbing 6)) ;;; create a maximmum of 6 coherent sets of sections using random hill climbing
-   (setq n (length best-sections)) ; find out how many sets were returned
-   (dotimes (i n (remove-duplicates result :test #'equal)) ;loop through the section sets (having removed any duplicates)
-    (if (> (length (node-sections (nth i best-sections))) 1) ; if there is more than one section in the set
-    (push (organise-sections (node-sections (nth i best-sections)))  result) ; organise the sections and push the section path into the result
-    (push (node-sections (nth i best-sections)) result)) ; otherwise just push the section into the result
-   )
+   (setq best-sections (remove-duplicates (random-hill-climbing 6) :test #'equal)) ;;; create a maximmum of 6 coherent sets of sections using random hill climbing
+   (mapcar #'node-sections best-sections)
   )
 ))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; ORGANISE STORY SECTIONS
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; NAME: organise-sections
-;;; INPUT: section-list - a list of story sections (generated from hill-climbing output)
-;;; OUTPUT: an ordered list of story sections
+;;; NAME: create-narrative-structures
+;;; INPUT: sections - a list of story sections (generated from hill-climbing output)
+;;; OUTPUT: a list of (linear output, layered output, multiroute output)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun organise-sections (section-list &aux start-list unused-sections similarity-scores ordered-sections)
- (setq unused-sections section-list) ; the full list of sections created by hill-climbing
- (setq similarity-scores (get-pairwise-similarity section-list)) ; the pairwise similarity for all items in the section list
-  (setq ordered-sections (car (stable-sort (copy-list similarity-scores) #'> :key #'third))) ; order the sections with best first
-  (setq unused-sections (remove (car ordered-sections) unused-sections :test #'equal)) ; remove the first item in ordered-sections from the unused-sections, as this becomes the starting point
-  (setq unused-sections (remove (cadr ordered-sections) unused-sections :test #'equal)) ; remove the second item in ordered-sections from the unused-sections, as this becomes 2nd in the path
+;;(create-narrative-structures *sections*)
 
-    (do
-    ((start-list (list (car ordered-sections) (cadr ordered-sections))) ; create the start-list from the ordered-sections
-     (unused unused-sections))
-    ((null unused) start-list) ;; if all sections are used, return result
-     ;;; otherwise
-    (progn
-         (setq next-best (cadr (find-best-score (cadr start-list) unused similarity-scores))) ; find the next-best section according to the similarity score
-           ;;; then add the section to the ordered-sections and remove it from unused-sections
-        (setq unused (remove next-best unused))
-        (setq start-list (append start-list (list next-best)))
-       ))
+(defun create-narrative-structures (sections &aux best-sections ordered-sections result linear layered multi)
+
+   (setq best-sections (car (sort (copy-list (random-hill-climbing 3)) #'> :key #'node-weighted-score))) ; use random hill-climbing with n=3 to find the best path and take the first result
+   (setq linear (node-sections best-sections))
+ 
+
+   (setq best-sections (car (random-hill-climbing 3))) ; best-sections is a node-structure
+   (setq layered-paths (mapcar (lambda (x) (find (list x) *nodes* :key #'node-sections :test #'equal)) (node-sections best-sections))) ; make a list of node structures (search in *nodes*) for each section in the backbone
+   (setq unused-sections (copy-list *nodes*)) ; then make a list of nodes for currently unused sections
+   (setq scores nil)
+
+   (mapcar (lambda (x) (setq unused-sections (remove (list x) unused-sections :key #'node-sections :test #'equal))) (node-sections best-sections))
+   ;;; version to use all unused-sections
+   (loop while unused-sections ; while there are unused-sections
+        do (setq eval 0)
+     do  (loop for i from 0 to (- (length unused-sections) 1) ; for every unused section
+           do (loop for j from i to (- (length layered-paths) 1) ; against each layered-path
+           do (setq current-eval (evaluate-next-node (nth i unused-sections) (nth j layered-paths)))  ; get the weighted score for merging the two sections
+           do (if (> (fourth current-eval) eval) ; if the eval score is the highest, then set up the parameters for merging.
+                  (progn 
+                    (setq next-node (nth i unused-sections))
+                    (setq current-node (nth j layered-paths))
+                    (setq eval (fourth current-eval))
+                    (setq next-cosine (first current-eval))
+                    (setq next-coverage (second current-eval))
+                    (setq next-object-coverage (third current-eval))))))
+     ;;; then merge the best nodes
+        (setq merged-node (new-current-node next-node current-node eval next-cosine next-coverage next-object-coverage)) ; this is a new merged-node
+   
+  ;;; UNCOMMENT THE IF STATEMENT TO ONLY EXPAND PATH WHERE IT INCREASES WEIGHTED SCORE
+      ;  (if (>= eval (node-weighted-score current-node))
+        ;;; replace it with the previous item in the layered-paths
+       (setq layered-paths (substitute merged-node (node-sections current-node) layered-paths :key #'node-sections :test #'equal))
+      ;   )
+       ;;; and remove the node from unused
+       (setq unused-sections (remove (node-sections next-node) unused-sections :key #'node-sections :test #'equal))
+      )
+   (setq layered (mapcar #'node-sections layered-paths))
+  
+ 
+   (setq result nil)
+   (setq best-sections (remove-duplicates (random-hill-climbing 6))) ;;; create a maximmum of 6 coherent sets of sections using random hill climbing
+   (setq multi (mapcar #'node-sections best-sections))
+
+   (list linear layered multi)
+  
 )
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; FIND BEST SCORE
