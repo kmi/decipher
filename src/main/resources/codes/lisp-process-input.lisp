@@ -511,7 +511,9 @@ sections events objects cosine-similarity coverage object-coverage weighted-scor
 
 (defun generic-summary (paths)
   (let* ((node-events-list (mapcar #'node-events paths))
-         (events-basis (mapcar (let ((n 0)) (lambda (x) (setq n (1+ n)) (format nil "A~A" n)))
+         (events-basis (mapcar (let ((n 0)) 
+                                 (lambda (x) (declare (ignore x)) 
+                                         (setq n (1+ n)) (format nil "A~A" n)))
                                (second (first (first node-events-list))))))
     ;; for each node...
     (mapcar 
@@ -542,42 +544,84 @@ sections events objects cosine-similarity coverage object-coverage weighted-scor
 ;;; NOTE: `generic-summary' is a variant that uses an artificially computed basis
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Once we have the keys and their values, we're going to have to look
+;; into the datastructure defined by the CAR of our input sample,
+;; which is a global variable at the moment.  The plan is to look for
+;; the three most popular items of different types (if we have three
+;; different things of different types, otherwise I guess we could
+;; just stop with the most popular things)
 (defun textual-summary (paths)
   (let* ((node-events-list (mapcar #'node-events paths))
-         (events-basis *basis*)
-         (events-summary
-          ;; for each node...
-          (mapcar 
-           ;; examine the events...
-           (lambda (event-sublist)
-             ;; and for each event, merge the results...
-             ;; sorted based on numerical identifier
-             (keep-duplicates-count
-              (mapcan (lambda (event)
-                        ;; return a list of the matching basis items
-                        (mapcan (lambda (item base)
-                                  (when (eq item 1)
-                                    (list base))) (second event) events-basis))
-                      event-sublist)
-              ;; set a lower bound for how many duplicate items are needed to be interesting
-              2))
+         (events-basis *basis*))
+         ;; for each NODE, we will examine the events...
+         (mapcar 
+          (lambda (event-sublist)
+            ;; and for each set of events, merge the results into one giant list...
+            (let* ((merged-list (mapcan (lambda (event)
+                                          ;; specifically comprised of the matching BASIS items
+                                          ;; found via comparing each vector of events with the
+                                          ;; basis
+                                          (mapcan (lambda (item base)
+                                                    (when (eq item 1)
+                                                      (list base)))
+                                                  (second event)
+                                                  events-basis))
+                                        event-sublist))
+                   ;; and count the occurrences of each item of interest
+                   (keys (keep-duplicates-count merged-list)))
+              ;; Loop over this data...
+              (let (list-of-top-types
+                    list-of-top-symbols)
+                (dolist (k keys)
+                  (dolist (type (car *sample-three*))
+                    ;; and build a list of the most popular items belonging to distinct types
+                    (when (member k (cadr type) :test #'string=)
+                      (unless (or
+                               (member (car type) list-of-top-types)
+                               (member k list-of-top-symbols :test #'string=))
+                        (setq list-of-top-types (nconc list-of-top-types (list (car type)))
+                              list-of-top-symbols (nconc list-of-top-symbols (list k)))
+                        ;; break out of inner loop when we add something
+                        (return))))
+                  ;; break out of outer loop once we've collected three different types
+                  (if (= 3 (length list-of-top-types))
+                      (return)))
+                ;; Finally, print these elements with a short natural language summary
+                (let ((to-print (mapcar #'cons list-of-top-types list-of-top-symbols)))
+                  (unless (null to-print)
+                   (text-summary-engine to-print))))))
            node-events-list)))
-    ;; Combine the `events-summary' with some of the things that were
-    ;; calculated about the nodes
-    (mapcar #'list            
-            events-summary
-            (mapcar (lambda (x) 
-                      (let ((coverage (node-coverage x)))
-                        (if (eq coverage 1)
-                            (setq coverage "FULL"))
-                        (format nil "Coverage: ~A" coverage)))
-                      paths)
-            (mapcar (lambda (x) 
-                      (let ((object-coverage (node-object-coverage x)))
-                        (if (eq object-coverage 1)
-                            (setq object-coverage "FULL"))
-                        (format nil "Object-Coverage: ~A" object-coverage)))
-                    paths))))
+
+; (HASAGENT HASSTARTTIME HASGENRE HASMATERIALS HASLOCATION HASCLASSIFICATION SEEALSO)
+(defun text-summary-engine (types-symbol-alist)
+  (let ((beg "This is a story")
+        med
+        (end "."))
+    (dolist (elt types-symbol-alist)
+      (cond ((eq (car elt) 'HASAGENT)
+             (setq med
+                   (nconc med (list (concatenate 'string " featuring " (cdr elt))))))
+            ((eq (car elt) 'HASSTARTTIME)
+             (setq med
+                   (nconc med (list (concatenate 'string " beginning in " (cdr elt))))))
+            ((eq (car elt) 'HASGENRE)
+             (setq med
+                   (nconc med (list (concatenate 'string " in the genre " (cdr elt))))))
+            ((eq (car elt) 'HASMATERIALS)
+             (setq med
+                   (nconc med (list (concatenate 'string " using " (cdr elt))))))
+            ((eq (car elt) 'HASLOCATION)
+             (setq med
+                   (nconc med (list (concatenate 'string " set in " (cdr elt))))))
+            ((eq (car elt) 'HASCLASSIFICATION)
+             (setq med
+                   (nconc med (list (concatenate 'string " dealing with " (cdr elt))))))
+            ((eq (car elt) 'SEEALSO)
+             (setq med
+                   (nconc med (list (concatenate 'string " also featuring " (cdr elt))))))
+            (t nil)))
+    (concatenate 'string beg (apply #'concatenate 'string med) end)
+    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; KEEP DUPLICATES, COUNTING NUMBER OF DUPLICATIONS
@@ -590,6 +634,32 @@ sections events objects cosine-similarity coverage object-coverage weighted-scor
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun keep-duplicates-count (list &optional (min-accept 1))
+  (let ((rv (make-hash-table :test #'equal)))
+    (mapcar (lambda (x) (let ((place (gethash x rv)))
+                          (if place
+                              (setf (gethash x rv) (1+ place))
+                              (setf (gethash x rv) 1))))
+            list)
+    (let ((counts (loop for key being the hash-keys of rv
+                       when (> (gethash key rv) min-accept)
+                     collect (cons key (gethash key rv)))))
+         (sort counts
+               (lambda (a b) (> (cdr a) (cdr b))))
+         ;; Maybe there would be a way to get away with less looping...
+         (loop for (a . b) in counts
+               collect a into keys
+               collect b into vals
+               finally (return (values keys vals))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; KEEP DUPLICATES, COUNTING NUMBER OF DUPLICATIONS (NON-THRESHOLDING VERSION)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; NAME: keep-duplicates-count-nt
+;;; INPUT: a list
+;;; OUTPUT: an alist that only includes duplicated items together with their frequency
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun keep-duplicates-count-nt (list &optional (min-accept 1))
   (let ((rv (make-hash-table :test #'equal)))
     (mapcar (lambda (x) (let ((place (gethash x rv)))
                           (if place
@@ -681,43 +751,43 @@ layered-paths
 ;;; input is '((nid nid nid) (nid nid nid)) Takes only one trail at a time, so linear, then layered, then multiroute
 
 (defun xml-trails (output xml-string)
-  (setq trails-start "<trails>")
-  (setq trails-end "</trails>")
-  (setq trail-start "<trail>")
-  (setq trails-end "</trails>")
-  (setq sections-start "<sections>")
-  (setq sections-end "</sections>")
-  (setq section-start "<section>")
-  (setq section-end "</section>")
-  (setq desc-start "<description>")
-  (setq desc-end "</description>")
-  (setq xml-string (concatenate 'string xml-string trails-start))
-        (dolist (n output)
-          (setq xml-string (concatenate 'string xml-string trail-start)) ; start a trail
-          ; add the title
-          ; close the title
-          ; add the description
-          ; close the description
-          ; add each section
-          ; close each section
+  (let* ((trails-start "<trails>")
+         (trails-end "</trails>")
+         (trail-start "<trail>")
+         (trail-end "</trail>")
+         (sections-start "<sections>")
+         (sections-end "</sections>")
+         (section-start "<section>")
+         (section-end "</section>")
+         (desc-start "<description>")
+         (desc-end "</description>")
+         (xml-string (concatenate 'string xml-string trails-start)))
+    (dolist (n output)
+      (setq xml-string (concatenate 'string xml-string trail-start)) ; start a trail
+;;; add the title
+;;; close the title
+;;; add the description
+;;; close the description
+;;; add each section
+;;; close each section
 
- ;<trail>
- ;  <trailId>585e3c1b-0595-4383-8511-e6a814cfc4a0</trailId>
- ;  <title>This is a trail</title>
- ;  <description>This trail deals with events about Bob in Canterbury in 1970.</description>
- ;  <sections>
- ;    <section>
- ;      <title>Things that happened when Bob went to church</title>
- ;      <section_uri>http://decipher-research.eu/section/9326</section_uri>
- ;    </section>
- ;    <section>
- ;      <title>Things that happened when Bob went hiking</title>
- ;      <section_uri>http://decipher-research.eu/section/8712</section_uri>
- ;    </section>
- ;  </sections>
- ;</trail>
-)
-)
+;;;<trail>
+;;;  <trailId>585e3c1b-0595-4383-8511-e6a814cfc4a0</trailId>
+;;;  <title>This is a trail</title>
+;;;  <description>This trail deals with events about Bob in Canterbury in 1970.</description>
+;;;  <sections>
+;;;    <section>
+;;;      <title>Things that happened when Bob went to church</title>
+;;;      <section_uri>http://decipher-research.eu/section/9326</section_uri>
+;;;    </section>
+;;;    <section>
+;;;      <title>Things that happened when Bob went hiking</title>
+;;;      <section_uri>http://decipher-research.eu/section/8712</section_uri>
+;;;    </section>
+;;;  </sections>
+;;;</trail>
+      )
+    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; NARRATIVE PROCESS INPUT : this is the current "main function"
@@ -821,237 +891,3 @@ layered-paths
 
 
 
-;;;; THESE FUCNTIONS MAY NOT BE USED NOW
-
-
-
-
-(defun get-stories (param &aux section-list stories story-list) ; param is 'all or 'last
- (setq section-list (mapcar #'car *sections*))
- (setq story-list nil)
- (dolist (section section-list)
-  (setq stories nil)
-
-  (setq stories (create-from-section param section))
-
-  (format t "~%~%~a" stories)
-  (push stories story-list)
-)
-(print-stories story-list)
-
-)
-
-(defun print-stories (story-list)
- (dolist (story story-list)
-   (print-story story)))
-
-(defun print-story (story)
-  (setq linear (car story))
-  (setq layered (cadr story))
-  (setq section (caar story))
-  (setq section-title (cadr (find section *lookup* :key #'car)))
-  (format t "~%~%SECTION TITLE: ~a" section-title)
-  (dotimes (i (- (length linear) 1)) ; print linear story
-    (if (< i 5)
-        (progn (setq title (cadr (find (nth i (cdr linear)) *lookup* :key #'car)))
-               (format t "~%~a" title))))
-;;; (format t "~%~%LAYERED STORIES")
-;;;(dolist (l layered)
-;;;   (setq top-level (cadr (find (car l) *lookup* :key #'car)))
-;;;   (format t "~%topnode: ~a" top-level)
-;;;   (dotimes (j (length (cdr l)))
-;;;   (if (< j 4)
-;;;      (progn
-;;;         (setq next-level (cadr (find (nth j (cdr l)) *lookup* :key #'car)))
-;;;         (format t "~%next: ~a" next-level)))
-;;;  ))
-  )
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; NAME: create-from-section
-;;; INPUT: sections - a list of story sections (generated from hill-climbing output)
-;;; OUTPUT: a list of (linear output, layered output, multiroute output)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;(create-narrative-structures 'nid *sections*)
-
-(defun create-from-section (param section &aux start-node best-sections layered-paths unused-sections current-eval next-node current-node eval next-cosine next-coverage next-object-coverage merged-node linear layered)
-  (setq start-node (find (list section) *nodes* :key #'node-sections :test #'equal))
-   (cond 
-    ((equal param 'all) (setq best-sections (hill-climbing start-node)))
-    ((equal param 'last) (setq best-sections (hill-climbing-last start-node))))
-
-   (setq linear (node-sections best-sections))
- 
-   (setq layered-paths (mapcar (lambda (x) (find (list x) *nodes* :key #'node-sections :test #'equal)) (node-sections best-sections))) ; make a list of node structures (search in *nodes*) for each section in the backbone
-   (setq unused-sections (copy-list *nodes*)) ; then make a list of nodes for currently unused sections
-
-   (mapcar (lambda (x) (setq unused-sections (remove (list x) unused-sections :key #'node-sections :test #'equal))) (node-sections best-sections))
-   ;;; version to use all unused-sections
-   (loop while unused-sections ; while there are unused-sections
-        do (setq eval 0)
-     do  (loop for i from 0 to (- (length unused-sections) 1) ; for every unused section
-           do (loop for j from i to (- (length layered-paths) 1) ; against each layered-path
-           do (setq current-eval (evaluate-next-node (nth i unused-sections) (nth j layered-paths)))  ; get the weighted score for merging the two sections
-           do (if (> (fourth current-eval) eval) ; if the eval score is the highest, then set up the parameters for merging.
-                  (progn 
-                    (setq next-node (nth i unused-sections))
-                    (setq current-node (nth j layered-paths))
-                    (setq eval (fourth current-eval))
-                    (setq next-cosine (first current-eval))
-                    (setq next-coverage (second current-eval))
-                    (setq next-object-coverage (third current-eval))))))
-     ;;; then merge the best nodes
-        (setq merged-node (new-current-node next-node current-node eval next-cosine next-coverage next-object-coverage)) ; this is a new merged-node
-   
-  ;;; UNCOMMENT THE IF STATEMENT TO ONLY EXPAND PATH WHERE IT INCREASES WEIGHTED SCORE
-      ;  (if (>= eval (node-weighted-score current-node))
-        ;;; replace it with the previous item in the layered-paths
-       (setq layered-paths (substitute merged-node (node-sections current-node) layered-paths :key #'node-sections :test #'equal))
-      ;   )
-       ;;; and remove the node from unused
-       (setq unused-sections (remove (node-sections next-node) unused-sections :key #'node-sections :test #'equal))
-      )
-   (setq layered (mapcar #'node-sections layered-paths))
-  
-   (list linear layered (textual-summary (list best-sections)))
-)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; CREATE NARRATIVE STRUCTURE
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; NAME: create-narrative-structure
-;;; INPUT: sections - a list of story sections (generated from hill-climbing output); type - one of 'linear 'layered or 'multi
-;;; OUTPUT: an ordered list of story sections
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;(create-narrative-structure 'layered)
-
-(defun create-narrative-structure (type &aux best-sections layered-paths unused-sections next-node current-node eval next-cosine next-coverage next-object-coverage current-eval merged-node )
-(cond
-  ((equal type 'linear)
-   (setq best-sections (car (sort (copy-list (random-hill-climbing 3)) #'> :key #'node-weighted-score))) ; use random hill-climbing with n=3 to find the best path and take the first result
-   (node-sections best-sections)
-   )
- ((equal type 'layered)
-   (setq best-sections (car (random-hill-climbing 3))) ; best-sections is a node-structure
-   (setq layered-paths (mapcar (lambda (x) (find (list x) *nodes* :key #'node-sections :test #'equal)) (node-sections best-sections))) ; make a list of node structures (search in *nodes*) for each section in the backbone
-   (setq unused-sections (copy-list *nodes*)) ; then make a list of nodes for currently unused sections
-   (mapcar (lambda (x) (setq unused-sections (remove (list x) unused-sections :key #'node-sections :test #'equal))) (node-sections best-sections))
-   ;;; version to use all unused-sections
-   (loop while unused-sections ; while there are unused-sections
-        do (setq eval 0)
-     do  (loop for i from 0 to (- (length unused-sections) 1) ; for every unused section
-           do (loop for j from i to (- (length layered-paths) 1) ; against each layered-path
-           do (setq current-eval (evaluate-next-node (nth i unused-sections) (nth j layered-paths)))  ; get the weighted score for merging the two sections
-           do (if (> (fourth current-eval) eval) ; if the eval score is the highest, then set up the parameters for merging.
-                  (progn 
-                    (setq next-node (nth i unused-sections))
-                    (setq current-node (nth j layered-paths))
-                    (setq eval (fourth current-eval))
-                    (setq next-cosine (first current-eval))
-                    (setq next-coverage (second current-eval))
-                    (setq next-object-coverage (third current-eval))))))
-     ;;; then merge the best nodes
-        (setq merged-node (new-current-node next-node current-node eval next-cosine next-coverage next-object-coverage)) ; this is a new merged-node
-   
-  ;;; UNCOMMENT THE IF STATEMENT TO ONLY EXPAND PATH WHERE IT INCREASES WEIGHTED SCORE
-      ;  (if (>= eval (node-weighted-score current-node))
-        ;;; replace it with the previous item in the layered-paths
-       (setq layered-paths (substitute merged-node (node-sections current-node) layered-paths :key #'node-sections :test #'equal))
-      ;   )
-       ;;; and remove the node from unused
-       (setq unused-sections (remove (node-sections next-node) unused-sections :key #'node-sections :test #'equal))
-      )
-   (mapcar #'node-sections layered-paths)
-  )
-  ((equal type 'multi)
-   (setq best-sections (remove-duplicates (random-hill-climbing 6) :test #'equal)) ;;; create a maximmum of 6 coherent sets of sections using random hill climbing
-   (mapcar #'node-sections best-sections)
-  )
-))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; NAME: create-narrative-structures
-;;; INPUT: sections - a list of story sections (generated from hill-climbing output)
-;;; OUTPUT: a list of (linear output, layered output, multiroute output)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;(create-narrative-structures *sections*)
-
-(defun create-narrative-structures (&aux best-sections linear layered-paths unused-sections next-node current-node eval current-eval next-cosine next-coverage next-object-coverage merged-node layered multi )
-   (setq best-sections (random-hill-climbing 6)) ; use random hill-climbing with n=3 to find the best path and take the first result
-   (setq linear (node-sections (car (sort (copy-list best-sections) #'> :key #'node-weighted-score))))
-   (setq layered-paths (mapcar (lambda (x) (find (list x) *nodes* :key #'node-sections :test #'equal)) linear)) ; make a list of node structures (search in *nodes*) for each section in the backbone
-   (setq unused-sections (copy-list *nodes*)) ; then make a list of nodes for currently unused sections
-   (mapcar (lambda (x) (setq unused-sections (remove (list x) unused-sections :key #'node-sections :test #'equal))) (node-sections best-sections))
-   ;;; version to use all unused-sections
-   (loop while unused-sections ; while there are unused-sections
-        do (setq eval 0)
-     do  (loop for i from 0 to (- (length unused-sections) 1) ; for every unused section
-           do (loop for j from i to (- (length layered-paths) 1) ; against each layered-path
-           do (setq current-eval (evaluate-next-node (nth i unused-sections) (nth j layered-paths)))  ; get the weighted score for merging the two sections
-           do (if (> (fourth current-eval) eval) ; if the eval score is the highest, then set up the parameters for merging.
-                  (progn 
-                    (setq next-node (nth i unused-sections))
-                    (setq current-node (nth j layered-paths))
-                    (setq eval (fourth current-eval))
-                    (setq next-cosine (first current-eval))
-                    (setq next-coverage (second current-eval))
-                    (setq next-object-coverage (third current-eval))))))
-     ;;; then merge the best nodes
-        (setq merged-node (new-current-node next-node current-node eval next-cosine next-coverage next-object-coverage)) ; this is a new merged-node
-   
-  ;;; UNCOMMENT THE IF STATEMENT TO ONLY EXPAND PATH WHERE IT INCREASES WEIGHTED SCORE
-      ;  (if (>= eval (node-weighted-score current-node))
-        ;;; replace it with the previous item in the layered-paths
-       (setq layered-paths (substitute merged-node (node-sections current-node) layered-paths :key #'node-sections :test #'equal))
-      ;   )
-       ;;; and remove the node from unused
-       (setq unused-sections (remove (node-sections next-node) unused-sections :key #'node-sections :test #'equal))
-      )
-     (setq layered (mapcar #'node-sections layered-paths))
-  
-     (setq multi (mapcar #'node-sections best-sections))
-
-   (list linear layered multi)
-)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Graveyard for functions that aren't called anywhere
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; REMOVE-NTH : THIS FUNCTION DOESN'T SEEM TO BE CALLED ANYWHERE
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; NAME: `remove-nth'
-;;; INPUT: 
-;;; OUTPUT: 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun remove-nth (n list)
-  (declare
-    (type (integer 0) n)
-    (type list list))
-  (if (or (zerop n) (null list))
-    (cdr list)
-    (cons (car list) (remove-nth (1- n) (cdr list)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; KEEP DUPLICATES
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; NAME: keep-duplicates
-;;; INPUT: a list
-;;; OUTPUT: another list that only includes duplicated items in the input
-;;; i.e. this is the opposite behavior to the function `delete-duplicates'
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun keep-duplicates (list)
-  (let (result)
-    (loop while list do
-         (let ((elt (car list)))
-           (when (and (member elt (cdr list))
-                      (not (member elt result)))
-             (setq result (nconc result (list elt)))))
-         (setq list (cdr list)))
-    result))
