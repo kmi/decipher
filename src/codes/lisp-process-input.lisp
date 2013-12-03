@@ -922,7 +922,10 @@ is replaced with replacement."
 )
 
 (defun generate-unique-identifier ()
-  (concatenate 'string (symbol-name (gensym)) (write-to-string (get-universal-time))))
+  (parse-integer 
+   (subseq
+    (concatenate 'string (symbol-name (gensym)) (write-to-string (get-universal-time)))
+    1)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
