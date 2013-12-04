@@ -202,12 +202,16 @@ public class EventRecommender {
                         break;
                     }
 					
+               //    StringEscapeUtils.escapeXml(str);
+               //     StringEscapeUtils.unescapeXml(str);
+                    
 					String dob = row.getValue("dob"); String dob_val=dob!=null? dob:"";
 					String dod = row.getValue("dod"); String dod_val=dod!=null? dod:"";
 					String poDB = row.getValue(place_var);
 					str += "<event>";
 					str += "<id>" + UUID.randomUUID().toString() + "</id>";
-					str += "<title>"+ person_sh + action + prep + queryLabel(location) + "</title>";
+					//str += "<title>"+ person_sh + action + prep + queryLabel(location) + "</title>";
+					str += "<title>"+ StringEscapeUtils.escapeXml(person_sh) + action + prep + queryLabel(location) + "</title>";
 					str += "<agents><agent>";
 					str += "<uri>" + person +"</uri>"; 
 					str += "<label>" + person_sh +"</label>"; 
@@ -221,7 +225,7 @@ public class EventRecommender {
 					str += "</location>";
 					str += "<activity>" + activity.substring(0, 5) +"</activity>";
 					str += "</event>";
-
+			
 				//	add_uriLookup(person,person_sh,dob_sh);
 				//	add_uriLookup(pob,pob_name_sh, null);
 				//	add_uriLookup(location,place_name_sh, null);
@@ -267,11 +271,11 @@ public class EventRecommender {
 					str += "<event>";
 					str += "<id>" + UUID.randomUUID().toString() + "</id>";
 					if (activity.equalsIgnoreCase("acquisition"))
-						str += "<title>&quot;"+ object_sh + "&quot; was acquired by "+ personLabel + ". Acquisition or buyer are associated with " + locationLabel +"</title>";
+						str += "<title>&quot;"+ StringEscapeUtils.escapeXml(object_sh) + "&quot; was acquired by "+ personLabel + ". Acquisition or buyer are associated with " + locationLabel +"</title>";
 					else if	(activity.equalsIgnoreCase("creation"))
-						str += "<title>&quot;"+ object_sh + "&quot; was created by "+ personLabel + ".  Creator or work are associated with " + locationLabel + "</title>";
+						str += "<title>&quot;"+ StringEscapeUtils.escapeXml(object_sh) + "&quot; was created by "+ personLabel + ".  Creator or work are associated with " + locationLabel + "</title>";
 					else if	(activity.equalsIgnoreCase("publishing"))
-						str += "<title>&quot;"+ object_sh + "&quot; by "+ personLabel + " was published. Author or publication are associated with " + locationLabel + "</title>";
+						str += "<title>&quot;"+ StringEscapeUtils.escapeXml(object_sh) + "&quot; by "+ personLabel + " was published. Author or publication are associated with " + locationLabel + "</title>";
 					str += "<agents><agent>";
 					str += "<uri>" + person +"</uri>"; 
 					str += "<label>" + personLabel +"</label>"; 
@@ -287,7 +291,7 @@ public class EventRecommender {
 						str += "<start_time>"+ time +"</start_time>";					
 					str += "<object>"; 
 					str += "<uri>" + object +"</uri>"; 
-					str += "<label>" + object_sh +"</label>"; 
+					str += "<label>" + StringEscapeUtils.escapeXml(object_sh) +"</label>"; 
 					str += "</object>";
 					str += "<activity>" + activity +"</activity>";
 					str += "</event>";
@@ -299,6 +303,7 @@ public class EventRecommender {
 				}				
 			}
 		}
+		System.out.println(str);
 		return str;
 	}
 		
@@ -403,7 +408,7 @@ public class EventRecommender {
 				+ "	   FILTER( ! regex(concat(\"\\b\", ?place_name, \"\\b\"), ?pob_name))"				
 				+ "}"
 				+ LIMIT;
-		System.out.println(queryStr);
+	//	System.out.println(queryStr);
 		String result = queryRDF(queryStr);
 //		System.out.println(result);
 		return result;
@@ -483,9 +488,9 @@ public class EventRecommender {
 				+ "      { {FILTER (?pob = dbpedia:" + place + ")} UNION" 
 				+ "                {?person dbp-ont:wikiPageWikiLink dbpedia:" + place +"}}" 
 				+ "}";
-		System.out.println(queryStr);
+	//	System.out.println(queryStr);
 		String result = queryRDF(queryStr);
-		System.out.println(result);
+	//	System.out.println(result);
 		return result;
 	}
 */
@@ -537,7 +542,7 @@ public class EventRecommender {
 				+ "optional {?object fb:visual_art.artwork.date_completed ?complete.}"
 				+"}"
 				+ LIMIT;		
-		System.out.println(queryStr);
+//		System.out.println(queryStr);
 		String result = queryRDF(queryStr);
 //		System.out.println(result);
 		return result;
@@ -570,12 +575,12 @@ public class EventRecommender {
 				+ "     FILTER(langMatches(lang(?artwork_name), 'EN'))."
 				+"}";
 
-		System.out.println(queryStr);
+	//	System.out.println(queryStr);
 		long start=System.currentTimeMillis();
 		String result = queryRDF(queryStr);
 		long end = System.currentTimeMillis();
 		System.err.println("the time elapsed: " + (end-start));
-		System.out.println(result);
+	//	System.out.println(result);
 		return result;
 	}
 */
@@ -675,7 +680,7 @@ public class EventRecommender {
 */	
 
 	public static void main(String[] args) throws Exception{
-		String dossier = "http://decipher-research.eu/dossiers/1313";//1533";
+		String dossier = "http://decipher.open.ac.uk.eu/dossiers/5341";//1533";
 //		String queryURI = "http://localhost:8088/openrdf-sesame/repositories/RecommenderDemo?query=";
 //		String queryURI = "http://storyscope5.ssl.co.uk:8080/openrdf-sesame/repositories/test?query=";
 		String queryURI = "http://decipher.open.ac.uk/openrdf-sesame/repositories/Decipher?query=";
