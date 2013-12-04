@@ -867,7 +867,7 @@ is replaced with replacement."
 ;;; for each type of narrative (linear, layered and multiroute)
         (dotimes (i (length outputs)) 
         (setq summary-description  (make-description (nth i outputs))) ;make a function to create a summary across trails (this can add up what is already there for coverage, plus print some stats about the structure)
-        (setq nid  (get-universal-time)) ; make a function to create a unique id from a timestamp
+        (setq nid (generate-unique-identifier)) ; call a function to create a unique id
         (setq type (car (nth i outputs)))
     ;;; open up the narrative xml, including trails summary
           (setq narrative-start (format nil 
@@ -885,7 +885,7 @@ is replaced with replacement."
         (dotimes (j (length (second (nth i outputs)))) 
           (setq section-length (length (nth j (second (nth i outputs)))))
           (setq description (format nil "There ~[are~;is~:;are~] ~a ~[sections~;section~:;sections~] in this story" section-length section-length section-length)) ; the output of textual summary
-          (setq tid (get-universal-time)) ; make function to create unique id
+          (setq tid (generate-unique-identifier)) ; call a function to create a unique id
           (setq title (nth j (third (nth i outputs))))
          (setq trail-string (format nil 
          "<trail>
@@ -921,7 +921,11 @@ is replaced with replacement."
     (format nil "This is a linear narrative with ~a ordered narrative sections" (length (car (second trails))) )))
 )
 
-
+(defun generate-unique-identifier ()
+  (parse-integer 
+   (subseq
+    (concatenate 'string (symbol-name (gensym)) (write-to-string (get-universal-time)))
+    1)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
